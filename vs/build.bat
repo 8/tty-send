@@ -1,7 +1,7 @@
 @echo ****************
 @echo *** Building ***
 @echo ****************
-@arm-linux-gnueabihf-g++.exe *.c -o tty-send
+@arm-linux-gnueabihf-g++.exe ..\*.c -o tty-send
 
 @IF %ERRORLEVEL% NEQ 0 EXIT %ERRORLEVEL%
 
