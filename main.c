@@ -325,31 +325,3 @@ static void ttys_printMsgHex(char* msg)
   printf("\n");
 }
 
-//char cmd_echo_off[] = { "ATE0\r\n" };
-//int cmd_echo_off_length = sizeof(cmd_echo_off)-1;
-//
-//char msg[] = { "AT+CGMR\r\n" };
-//int msg_length = sizeof(msg)-1;
-//
-//char cmd_verbose_errors[] = { "AT+CMEE=2\r\n" };
-//int cmd_verbose_errors_length = sizeof(cmd_verbose_errors)-1;
-
-//void read_response(int fd) 
-//{
-//  int bytesRead;
-//
-//  printf("reading from the device:\n");
-//  memset(buffer, 0, sizeof(buffer));
-//  bytesRead = read(fd, buffer, sizeof(buffer)-1);
-//  printMsgHex(buffer);
-//  printf("\n");
-//}
-
-//void send_command(int fd, char* cmd, int cmd_length)
-//{
-//  printf("writing to the device:\n");
-//  test_printMsgHex(cmd);
-//  printf("\n");
-//  write(fd, cmd, cmd_length);
-//}
-
