@@ -1,7 +1,7 @@
 /* test tool to send data to tty devices */
 
 #include <stdio.h>
-#include <iostream>
+#include <unistd.h>  /* needed for read/write */
 #include <termios.h> // needed for implementing set_inferface_attribs()
 #include <fcntl.h>   /* needed for O_RDWR, O_NOCTTY, O_NDELAY */
 #include <string.h>
