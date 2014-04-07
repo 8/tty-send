@@ -23,5 +23,6 @@
     <None Include="build.bat">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="..\README" />
   </ItemGroup>
 </Project>

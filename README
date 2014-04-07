@@ -1,0 +1,11 @@
+Simple C cmdline tool for sending data using a tty device
+
+usage examples:
+
+sending the contents of a file:
+./tty-send --device=/dev/ttyRPC0 --file=test100.txt
+sends the contents of the file test100.txt to the tty port
+
+sending an ascii pattern:
+./tty-send --device=/dev/ttyRPC0 --pattern=48 --repeat=10
+sends the ascii 48 (='0') 10 times to the tty port
