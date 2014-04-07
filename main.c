@@ -74,7 +74,7 @@ typedef struct {
 static void ttys_printMsg(char* msg, int count);
 static void ttys_printMsgHex(char* msg);
 static void ttys_handle_parameters(int argc, char** argv, internals_t *internals);
-static int  ttys_open_device(void);
+static int  ttys_open_device(char* device, int non_blocking_write);
 
 static void init_internals(internals_t *internals)
 {
