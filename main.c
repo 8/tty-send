@@ -55,7 +55,7 @@ int set_interface_attribs(int fd, int speed, int parity, int stopbits, int datab
   return 0;
 }
 
-typedef enum { action_print_help, action_send_file, action_send_pattern, action_echo } action_t;
+typedef enum { action_print_help, action_send_file, action_send_pattern, action_echo, action_receive } action_t;
 
 typedef enum { local_echo_hex, local_echo_char, local_echo_none } local_echo_t;
 
@@ -191,6 +191,17 @@ static void write_file(int fd, internals_t *internals)
   }
 }
 
+static void print_local_echo(local_echo_t local_echo, char c)
+{
+    /* echo the read data back to the console */
+    switch (local_echo)
+    {
+      case local_echo_hex: printf("0x%02X - %c\n", c, c); break;
+      case local_echo_char: printf("%c", c); break;
+      case local_echo_none: break;
+    }
+}
+
 static void echo_loop(int fd, internals_t *internals)
 {
   char buffer[1];
@@ -204,19 +215,30 @@ static void echo_loop(int fd, internals_t *internals)
 
     if (bytes_read > 0)
     {
-
-      /* echo the read data back to the console */
-      switch (internals->local_echo)
-      {
-        case local_echo_hex: printf("0x%02X - %c\n", buffer[0], buffer[0]); break;
-        case local_echo_char: printf("%c", buffer[0]); break;
-        case local_echo_none: break;
-      }
+      print_local_echo(internals->local_echo, buffer[0]);
 
       /* echo the read bytes back to device */
       write(fd, buffer, bytes_read);
     }
   }
+}
+
+static void receive_loop(int fd, internals_t *internals)
+{
+  char buffer[1];
+  int bytes_read;
+
+  printf("entering receive loop - waiting to receive data\n");
+  while(1)
+  {
+    bytes_read = read(fd, buffer, sizeof(buffer));
+
+    if (bytes_read > 0)
+    {
+      print_local_echo(internals->local_echo, buffer[0]);
+    }
+  }
+
 }
 
 /* main entry point */
@@ -246,6 +268,8 @@ int main(int argc, char *argv[])
         write_pattern(fd, &internals);
       else if (internals.action == action_echo)
         echo_loop(fd, &internals);
+      else if (internals.action == action_receive)
+        receive_loop(fd, &internals);
     
       /* closing device */
       printf("closing device %i\n", fd);
@@ -261,8 +285,10 @@ typedef enum
   ttys_command_set_blocking_mode,
   ttys_command_set_repeat,
   ttys_command_send_pattern,
-  ttys_command_echo,
-  ttys_command_set_baudrate
+  ttys_command_set_echo,
+  ttys_command_set_baudrate,
+  ttys_command_set_receive,
+  ttys_command_set_local_echo
 } test_command_t;
 
 static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *internals)
@@ -299,17 +325,9 @@ static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *int
       internals->action = action_send_pattern;
       break;
 
-    case ttys_command_echo:
-      printf("\n");
+    case ttys_command_set_echo:
+      //printf("\n");
       internals->action = action_echo;
-      internals->local_echo = local_echo_hex;
-      if (arg != NULL)
-      {
-        if (strcmp("no", arg) == 0 || strcmp("n", arg) == 0 || strcmp("none", arg) == 0)
-          internals->local_echo = local_echo_none;
-        else if (strcmp("char", arg) == 0 || strcmp("c", arg) == 0)
-          internals->local_echo = local_echo_char;
-      }
       break;
 
     case ttys_command_set_baudrate:
@@ -324,6 +342,21 @@ static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *int
         default: printf("unknown baudrate '%s' - try 9600, 19200, 38400, 57600 or 115200\n", arg); break;
       }
       break;
+
+    case ttys_command_set_receive:
+      internals->action = action_receive;
+      break;
+
+    case ttys_command_set_local_echo:
+      internals->local_echo = local_echo_hex;
+      if (arg != NULL)
+      {
+        if (strcmp("no", arg) == 0 || strcmp("n", arg) == 0 || strcmp("none", arg) == 0)
+          internals->local_echo = local_echo_none;
+        else if (strcmp("char", arg) == 0 || strcmp("c", arg) == 0)
+          internals->local_echo = local_echo_char;
+      }
+      break;
   }
 }
 
@@ -332,13 +365,15 @@ static void ttys_handle_parameters(int argc, char** argv, internals_t *internals
   int c = -1;
 
   struct option long_options[] = {
-    { "device",   required_argument, 0, 0 },
-    { "file",     required_argument, 0, 0 },
-    { "block",    required_argument, 0, 0 },
-    { "repeat",   required_argument, 0, 0 },
-    { "pattern",  optional_argument, 0, 0 },
-    { "echo",     optional_argument, 0, 0 },
-    { "baudrate", required_argument, 0, 0 },
+    { "device",     required_argument, 0, 0 },
+    { "file",       required_argument, 0, 0 },
+    { "block",      required_argument, 0, 0 },
+    { "repeat",     required_argument, 0, 0 },
+    { "pattern",    optional_argument, 0, 0 },
+    { "echo",       no_argument,       0, 0 },
+    { "baudrate",   required_argument, 0, 0 },
+    { "receive",    no_argument,       0, 0 },
+    { "local-echo", required_argument, 0, 0 },
     { 0,          0,                 0, 0 }
   };
 
