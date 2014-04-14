@@ -227,6 +227,7 @@ static void receive_loop(int fd, internals_t *internals)
 {
   char buffer[1];
   int bytes_read;
+  int total_received = 0;
 
   printf("entering receive loop - waiting to receive data\n");
   while(1)
@@ -236,6 +237,9 @@ static void receive_loop(int fd, internals_t *internals)
     if (bytes_read > 0)
     {
       print_local_echo(internals->local_echo, buffer[0]);
+      total_received += bytes_read;
+      if (internals->count != 0 && total_received >= internals->count)
+        break;
     }
   }
 
