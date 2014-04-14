@@ -194,7 +194,7 @@ static void write_file(int fd, internals_t *internals)
 static void echo_loop(int fd, internals_t *internals)
 {
   char buffer[1];
-  int bytes_read, i;
+  int bytes_read;
 
   printf("entering echo loop - waiting to receive data\n");
   while(1)
