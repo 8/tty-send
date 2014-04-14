@@ -55,11 +55,26 @@ int set_interface_attribs(int fd, int speed, int parity, int stopbits, int datab
   return 0;
 }
 
+typedef enum
+{
+  ttys_command_set_device,
+  ttys_command_set_file,
+  ttys_command_set_blocking_mode,
+  ttys_command_set_count,
+  ttys_command_send_pattern,
+  ttys_command_set_echo,
+  ttys_command_set_baudrate,
+  ttys_command_set_receive,
+  ttys_command_set_local_echo,
+  ttys_command_set_output_file
+} ttys_command_t;
+
 typedef enum { action_print_help, action_send_file, action_send_pattern, action_echo, action_receive } action_t;
 
 typedef enum { local_echo_hex, local_echo_char, local_echo_none } local_echo_t;
 
 #define DATA_LENGTH 1
+#define FILE_NAME_LENGTH 255
 
 /* variables */
 typedef struct {
@@ -75,6 +90,7 @@ typedef struct {
   int parity;
   int stopbits;
   int databits;
+  char output_file[FILE_NAME_LENGTH];
 } internals_t;
 
 /* forward declarations */
@@ -228,6 +244,16 @@ static void receive_loop(int fd, internals_t *internals)
   char buffer[1];
   int bytes_read;
   int total_received = 0;
+  int fd_output = -1;
+
+  /* try to open the output file */
+  if (internals->output_file[0] != 0)
+  {
+    printf("opening output file: '%s'\n", internals->output_file);
+    fd_output = open(internals->output_file, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+    if (fd_output == -1)
+      printf("failed opening output file\n");
+  }
 
   printf("entering receive loop - waiting to receive data\n");
   while(1)
@@ -236,13 +262,24 @@ static void receive_loop(int fd, internals_t *internals)
 
     if (bytes_read > 0)
     {
+      /* print a local echo */
       print_local_echo(internals->local_echo, buffer[0]);
+
+      /* write the received bytes to the output file */
+      if (fd_output != -1)
+        write(fd_output, buffer, bytes_read);
+
+      /* stop after reading 'count' bytes */
       total_received += bytes_read;
       if (internals->count != 0 && total_received >= internals->count)
         break;
     }
   }
   printf("\n");
+
+  /* close the output file */
+  if (fd_output != -1)
+    close(fd_output);
 
 }
 
@@ -278,7 +315,7 @@ int main(int argc, char *argv[])
         echo_loop(fd, &internals);
       else if (internals.action == action_receive)
         receive_loop(fd, &internals);
-    
+
       /* closing device */
       printf("closing device %i\n", fd);
       close(fd);
@@ -286,20 +323,7 @@ int main(int argc, char *argv[])
   }
 }
 
-typedef enum
-{
-  ttys_command_set_device,
-  ttys_command_set_file,
-  ttys_command_set_blocking_mode,
-  ttys_command_set_count,
-  ttys_command_send_pattern,
-  ttys_command_set_echo,
-  ttys_command_set_baudrate,
-  ttys_command_set_receive,
-  ttys_command_set_local_echo
-} test_command_t;
-
-static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *internals)
+static void ttys_execute_command(ttys_command_t cmd, char* arg, internals_t *internals)
 {
   int i;
   switch (cmd)
@@ -365,6 +389,11 @@ static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *int
           internals->local_echo = local_echo_char;
       }
       break;
+
+    case ttys_command_set_output_file:
+      strncpy(internals->output_file, arg, FILE_NAME_LENGTH-1); /* store the file name */
+      printf("setting output file to: %s\n", internals->filename);
+      break;
   }
 }
 
@@ -372,16 +401,18 @@ static void ttys_handle_parameters(int argc, char** argv, internals_t *internals
 {
   int c = -1;
 
+  /* must match the definition of ttys_command_t */
   struct option long_options[] = {
     { "device",     required_argument, 0, 0 },
     { "file",       required_argument, 0, 0 },
     { "block",      required_argument, 0, 0 },
-    { "count",     required_argument, 0, 0 },
+    { "count",      required_argument, 0, 0 },
     { "pattern",    optional_argument, 0, 0 },
     { "echo",       no_argument,       0, 0 },
     { "baudrate",   required_argument, 0, 0 },
     { "receive",    no_argument,       0, 0 },
     { "local-echo", required_argument, 0, 0 },
+    { "output",     required_argument, 0, 0 },
     { 0,          0,                 0, 0 }
   };
 
@@ -396,7 +427,7 @@ static void ttys_handle_parameters(int argc, char** argv, internals_t *internals
     c = getopt_long(argc, argv, "", long_options, &option_index);
 
     if (c != -1)
-      ttys_execute_command((test_command_t)option_index, optarg, internals);
+      ttys_execute_command((ttys_command_t)option_index, optarg, internals);
 
   } while (c != -1);
 
