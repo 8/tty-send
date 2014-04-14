@@ -71,6 +71,10 @@ typedef struct {
   int data_length;
   action_t action;
   local_echo_t local_echo;
+  int baudrate;
+  int parity;
+  int stopbits;
+  int databits;
 } internals_t;
 
 /* forward declarations */
@@ -85,6 +89,10 @@ static void init_internals(internals_t *internals)
   internals->data_length = DATA_LENGTH;
   internals->repeat_count = 1;
   internals->data[0] = 0xAA;
+  internals->baudrate = B9600;
+  internals->parity = 0;
+  internals->stopbits = 0;
+  internals->databits = CS8;
 }
 
 static int ttys_open_device(char* device, int non_blocking_write)
@@ -194,17 +202,20 @@ static void echo_loop(int fd, internals_t *internals)
     /* wait for reception of data */
     bytes_read = read(fd, buffer, sizeof(buffer));
 
-    /* echo the read data back to the console */
-    switch (internals->local_echo)
-    {
-      case local_echo_hex: printf("0x%02X - %c\n", buffer[0], buffer[0]); break;
-      case local_echo_char: printf("%c", buffer[0]); break;
-      case local_echo_none: break;
-    }
-
-    /* echo the read bytes back to device */
     if (bytes_read > 0)
+    {
+
+      /* echo the read data back to the console */
+      switch (internals->local_echo)
+      {
+        case local_echo_hex: printf("0x%02X - %c\n", buffer[0], buffer[0]); break;
+        case local_echo_char: printf("%c", buffer[0]); break;
+        case local_echo_none: break;
+      }
+
+      /* echo the read bytes back to device */
       write(fd, buffer, bytes_read);
+    }
   }
 }
 
@@ -226,6 +237,9 @@ int main(int argc, char *argv[])
     /* open the device */
     if ((fd = ttys_open_device(internals.device, internals.non_blocking_write)) != -1)
     {
+      /* configure the tty device */
+      set_interface_attribs(fd, internals.baudrate, internals.parity, internals.stopbits, internals.databits);
+
       if (internals.action == action_send_file)
         write_file(fd, &internals);
       else if (internals.action == action_send_pattern)
@@ -247,11 +261,13 @@ typedef enum
   ttys_command_set_blocking_mode,
   ttys_command_set_repeat,
   ttys_command_send_pattern,
-  ttys_command_echo
+  ttys_command_echo,
+  ttys_command_set_baudrate
 } test_command_t;
 
 static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *internals)
 {
+  int i;
   switch (cmd)
   {
     case ttys_command_set_device:
@@ -295,6 +311,19 @@ static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *int
           internals->local_echo = local_echo_char;
       }
       break;
+
+    case ttys_command_set_baudrate:
+      i = atoi(arg);
+      switch (i)
+      {
+        case 9600: internals->baudrate = B9600; break;
+        case 19200: internals->baudrate = B19200; break;
+        case 38400: internals->baudrate = B38400; break;
+        case 57600: internals->baudrate = B57600; break;
+        case 115200: internals->baudrate = B115200; break;
+        default: printf("unknown baudrate '%s' - try 9600, 19200, 38400, 57600 or 115200\n", arg); break;
+      }
+      break;
   }
 }
 
@@ -303,13 +332,14 @@ static void ttys_handle_parameters(int argc, char** argv, internals_t *internals
   int c = -1;
 
   struct option long_options[] = {
-    { "device",  required_argument, 0, 0 },
-    { "file",    required_argument, 0, 0 },
-    { "block",   required_argument, 0, 0 },
-    { "repeat",  required_argument, 0, 0 },
-    { "pattern", optional_argument, 0, 0 },
-    { "echo",    optional_argument, 0, 0 },
-    { 0,         0,                 0, 0 }
+    { "device",   required_argument, 0, 0 },
+    { "file",     required_argument, 0, 0 },
+    { "block",    required_argument, 0, 0 },
+    { "repeat",   required_argument, 0, 0 },
+    { "pattern",  optional_argument, 0, 0 },
+    { "echo",     optional_argument, 0, 0 },
+    { "baudrate", required_argument, 0, 0 },
+    { 0,          0,                 0, 0 }
   };
 
   /* enable error messages for arguments */
