@@ -242,6 +242,7 @@ static void receive_loop(int fd, internals_t *internals)
         break;
     }
   }
+  printf("\n");
 
 }
 
@@ -255,6 +256,9 @@ int main(int argc, char *argv[])
 
   /* handle the params */
   ttys_handle_parameters(argc, argv, &internals);
+
+  /* disable buffering for stdout */
+  setbuf(stdout, NULL);
 
   if (internals.action == action_print_help)
     ttys_print_usage();
