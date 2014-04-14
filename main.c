@@ -66,7 +66,7 @@ typedef struct {
   char device[255];
   char filename[255];
   int non_blocking_write;
-  int repeat_count;
+  int count;
   char data[DATA_LENGTH];
   int data_length;
   action_t action;
@@ -87,7 +87,7 @@ static void init_internals(internals_t *internals)
 {
   memset(internals, 0, sizeof(internals_t));
   internals->data_length = DATA_LENGTH;
-  internals->repeat_count = 1;
+  internals->count = 0;
   internals->data[0] = 0xAA;
   internals->baudrate = B9600;
   internals->parity = 0;
@@ -113,7 +113,7 @@ static void ttys_print_usage()
   printf("tty-send tool by mdk\n");
   printf("example usage:\n");
   printf("\twith a file:    ./tty-send --device=/dev/ttyRPC+0 --file=test.txt --block=no\n");
-  printf("\twith a pattern: ./tty-send --device=/dev/ttyRPC+0 --pattern=1 --repeat=10\n");
+  printf("\twith a pattern: ./tty-send --device=/dev/ttyRPC+0 --pattern=1 --count=10\n");
   printf("\twith echo:      ./tty-send --device=/dev/ttyRPC+0 --echo\n");
 }
 
@@ -122,7 +122,7 @@ static void write_pattern(int fd, internals_t *internals)
   int i, remaining_bytes_to_write, bytes_written;
   char *pwrite;
 
-  for (i = 0; i < internals->repeat_count || internals->repeat_count == -1; i++)
+  for (i = 0; i < internals->count || internals->count == 0; i++)
   {
     pwrite = internals->data;
     remaining_bytes_to_write = internals->data_length;
@@ -283,7 +283,7 @@ typedef enum
   ttys_command_set_device,
   ttys_command_set_file,
   ttys_command_set_blocking_mode,
-  ttys_command_set_repeat,
+  ttys_command_set_count,
   ttys_command_send_pattern,
   ttys_command_set_echo,
   ttys_command_set_baudrate,
@@ -313,9 +313,9 @@ static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *int
         internals->non_blocking_write = 1;
       break;
 
-    case ttys_command_set_repeat:
-      printf("repeat: %s\n", arg);
-      internals->repeat_count = atoi(arg);
+    case ttys_command_set_count:
+      printf("count: %s\n", arg);
+      internals->count = atoi(arg);
       break;
 
     case ttys_command_send_pattern:
@@ -368,7 +368,7 @@ static void ttys_handle_parameters(int argc, char** argv, internals_t *internals
     { "device",     required_argument, 0, 0 },
     { "file",       required_argument, 0, 0 },
     { "block",      required_argument, 0, 0 },
-    { "repeat",     required_argument, 0, 0 },
+    { "count",     required_argument, 0, 0 },
     { "pattern",    optional_argument, 0, 0 },
     { "echo",       no_argument,       0, 0 },
     { "baudrate",   required_argument, 0, 0 },
