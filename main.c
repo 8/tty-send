@@ -55,7 +55,9 @@ int set_interface_attribs(int fd, int speed, int parity, int stopbits, int datab
   return 0;
 }
 
-typedef enum { action_print_help, action_send_file, action_send_pattern } action_t;
+typedef enum { action_print_help, action_send_file, action_send_pattern, action_echo } action_t;
+
+typedef enum { local_echo_hex, local_echo_char, local_echo_none } local_echo_t;
 
 #define DATA_LENGTH 1
 
@@ -68,6 +70,7 @@ typedef struct {
   char data[DATA_LENGTH];
   int data_length;
   action_t action;
+  local_echo_t local_echo;
 } internals_t;
 
 /* forward declarations */
@@ -103,6 +106,7 @@ static void ttys_print_usage()
   printf("example usage:\n");
   printf("\twith a file:    ./tty-send --device=/dev/ttyRPC+0 --file=test.txt --block=no\n");
   printf("\twith a pattern: ./tty-send --device=/dev/ttyRPC+0 --pattern=1 --repeat=10\n");
+  printf("\twith echo:      ./tty-send --device=/dev/ttyRPC+0 --echo\n");
 }
 
 static void write_pattern(int fd, internals_t *internals)
@@ -122,6 +126,11 @@ static void write_pattern(int fd, internals_t *internals)
       {
         remaining_bytes_to_write -= bytes_written;
         pwrite += bytes_written;
+      }
+      else if (bytes_written == -1)
+      {
+        printf("error occurred while writing to device\n");
+        exit(-1);
       }
     }
   }
@@ -174,6 +183,31 @@ static void write_file(int fd, internals_t *internals)
   }
 }
 
+static void echo_loop(int fd, internals_t *internals)
+{
+  char buffer[1];
+  int bytes_read, i;
+
+  printf("entering echo loop - waiting to receive data\n");
+  while(1)
+  {
+    /* wait for reception of data */
+    bytes_read = read(fd, buffer, sizeof(buffer));
+
+    /* echo the read data back to the console */
+    switch (internals->local_echo)
+    {
+      case local_echo_hex: printf("0x%02X - %c\n", buffer[0], buffer[0]); break;
+      case local_echo_char: printf("%c", buffer[0]); break;
+      case local_echo_none: break;
+    }
+
+    /* echo the read bytes back to device */
+    if (bytes_read > 0)
+      write(fd, buffer, bytes_read);
+  }
+}
+
 /* main entry point */
 int main(int argc, char *argv[])
 {
@@ -196,6 +230,8 @@ int main(int argc, char *argv[])
         write_file(fd, &internals);
       else if (internals.action == action_send_pattern)
         write_pattern(fd, &internals);
+      else if (internals.action == action_echo)
+        echo_loop(fd, &internals);
     
       /* closing device */
       printf("closing device %i\n", fd);
@@ -210,7 +246,8 @@ typedef enum
   ttys_command_set_file,
   ttys_command_set_blocking_mode,
   ttys_command_set_repeat,
-  ttys_command_send_pattern
+  ttys_command_send_pattern,
+  ttys_command_echo
 } test_command_t;
 
 static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *internals)
@@ -245,6 +282,19 @@ static void ttys_execute_command(test_command_t cmd, char* arg, internals_t *int
         internals->data[0] = atoi(arg);
       internals->action = action_send_pattern;
       break;
+
+    case ttys_command_echo:
+      printf("\n");
+      internals->action = action_echo;
+      internals->local_echo = local_echo_hex;
+      if (arg != NULL)
+      {
+        if (strcmp("no", arg) == 0 || strcmp("n", arg) == 0 || strcmp("none", arg) == 0)
+          internals->local_echo = local_echo_none;
+        else if (strcmp("char", arg) == 0 || strcmp("c", arg) == 0)
+          internals->local_echo = local_echo_char;
+      }
+      break;
   }
 }
 
@@ -253,12 +303,13 @@ static void ttys_handle_parameters(int argc, char** argv, internals_t *internals
   int c = -1;
 
   struct option long_options[] = {
-    { "device", required_argument, 0, 0 },
-    { "file",   required_argument, 0, 0 },
-    { "block",  required_argument, 0, 0 },
-    { "repeat", required_argument, 0, 0 },
-    { "pattern", optional_argument,0, 0 },
-    { 0,        0,                 0, 0 }
+    { "device",  required_argument, 0, 0 },
+    { "file",    required_argument, 0, 0 },
+    { "block",   required_argument, 0, 0 },
+    { "repeat",  required_argument, 0, 0 },
+    { "pattern", optional_argument, 0, 0 },
+    { "echo",    optional_argument, 0, 0 },
+    { 0,         0,                 0, 0 }
   };
 
   /* enable error messages for arguments */
