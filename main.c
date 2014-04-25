@@ -392,7 +392,7 @@ static void ttys_execute_command(ttys_command_t cmd, char* arg, internals_t *int
 
     case ttys_command_set_output_file:
       strncpy(internals->output_file, arg, FILE_NAME_LENGTH-1); /* store the file name */
-      printf("setting output file to: %s\n", internals->filename);
+      printf("setting output file to: %s\n", internals->output_file);
       break;
   }
 }
