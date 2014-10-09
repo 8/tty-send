@@ -64,6 +64,9 @@ typedef enum
   ttys_command_send_pattern,
   ttys_command_set_echo,
   ttys_command_set_baudrate,
+  ttyc_command_set_parity,
+  ttyc_command_set_stopbits,
+  ttyc_command_set_databits,
   ttys_command_set_receive,
   ttys_command_set_local_echo,
   ttys_command_set_output_file
@@ -323,6 +326,68 @@ int main(int argc, char *argv[])
   }
 }
 
+static void ttyc_set_baudrate(char* arg, internals_t *internals)
+{
+  int i;
+  printf("set baudrate: %s\n", arg);
+
+  i = atoi(arg);
+  switch (i)
+  {
+    case 9600: internals->baudrate = B9600; break;
+    case 19200: internals->baudrate = B19200; break;
+    case 38400: internals->baudrate = B38400; break;
+    case 57600: internals->baudrate = B57600; break;
+    case 115200: internals->baudrate = B115200; break;
+    default: printf("unknown baudrate, try 9600, 19200, 38400, 57600 or 115200\n"); break;
+  }
+}
+
+static void ttyc_set_parity(char* arg, internals_t *internals)
+{
+  printf("set parity: %s\n", arg);
+  if (strncmp(arg, "none", 4)==0)
+    internals->parity = 0;
+  else if (strncmp(arg, "even", 4) == 0)
+    internals->parity = PARENB;
+  else if (strncmp(arg, "odd", 3) == 0)
+    internals->parity = (PARENB | PARODD);
+  else
+    printf("unknown parity value, allowed values are: none, even, odd\n");
+}
+
+static void ttyc_set_stopbits(char* arg, internals_t *internals)
+{
+  int i;
+  printf("set stopbits: %s\n", arg);
+
+  i = atoi(arg);
+
+  if (i == 1)
+    internals->stopbits = 0;
+  else if (i == 2)
+    internals->stopbits = CSTOPB;
+  else
+    printf("valid values: 0, 1\n");
+}
+
+static void ttyc_set_databits(char* arg, internals_t *internals)
+{
+  int i;
+  printf("set databits: %s\n", arg);
+  i = atoi(arg);
+
+  switch (i)
+  {
+    case 5: internals->databits = CS5; break;
+    case 6: internals->databits = CS6; break;
+    case 7: internals->databits = CS7; break;
+    case 8: internals->databits = CS8; break;
+    default: printf("valid values: 5, 6, 7, 8\n"); break;
+  }
+}
+
+
 static void ttys_execute_command(ttys_command_t cmd, char* arg, internals_t *internals)
 {
   int i;
@@ -358,21 +423,23 @@ static void ttys_execute_command(ttys_command_t cmd, char* arg, internals_t *int
       break;
 
     case ttys_command_set_echo:
-      //printf("\n");
       internals->action = action_echo;
       break;
 
     case ttys_command_set_baudrate:
-      i = atoi(arg);
-      switch (i)
-      {
-        case 9600: internals->baudrate = B9600; break;
-        case 19200: internals->baudrate = B19200; break;
-        case 38400: internals->baudrate = B38400; break;
-        case 57600: internals->baudrate = B57600; break;
-        case 115200: internals->baudrate = B115200; break;
-        default: printf("unknown baudrate '%s' - try 9600, 19200, 38400, 57600 or 115200\n", arg); break;
-      }
+      ttyc_set_baudrate(arg, internals);
+      break;
+
+    case ttyc_command_set_parity:
+      ttyc_set_parity(arg, internals);
+      break;
+
+    case ttyc_command_set_stopbits:
+      ttyc_set_stopbits(arg, internals);
+      break;
+
+    case ttyc_command_set_databits:
+      ttyc_set_databits(arg, internals);
       break;
 
     case ttys_command_set_receive:
@@ -410,6 +477,9 @@ static void ttys_handle_parameters(int argc, char** argv, internals_t *internals
     { "pattern",    optional_argument, 0, 0 },
     { "echo",       no_argument,       0, 0 },
     { "baudrate",   required_argument, 0, 0 },
+    { "parity",     required_argument, 0, 0 },
+    { "stopbits",   required_argument, 0, 0 },
+    { "databits",   required_argument, 0, 0 },
     { "receive",    no_argument,       0, 0 },
     { "local-echo", required_argument, 0, 0 },
     { "output",     required_argument, 0, 0 },
