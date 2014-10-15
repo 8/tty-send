@@ -6,7 +6,7 @@ SRCS = $(wildcard *.h) $(wildcard *.c)
 all: tty-send
 
 tty-send: $(SRCS)
-	$(CC)  $^ -lpthread -o $@
+	$(CC) $^ -lpthread -lrt -o $@
 
 clean:
 	rm -f tty-send

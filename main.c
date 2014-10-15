@@ -9,6 +9,7 @@
 #include <stdlib.h>  /* for atoi() */
 #include <errno.h>
 #include <pthread.h> /* used for multithreading */
+#include <time.h>    /* used for time measurement */
 
 /* function to configure the serial port */
 int set_interface_attribs(int fd, int speed, int parity, int stopbits, int databits)
@@ -96,6 +97,7 @@ typedef struct {
   int databits;
   char output_file[FILE_NAME_LENGTH];
   volatile int total_bytes_received;
+  int total_bytes_written;
 } internals_t;
 
 /* forward declarations */
@@ -170,7 +172,7 @@ static void send_file(int fd, internals_t *internals)
   int file, readBytes, remaining_bytes_to_write, bytesWritten;
   char buffer[8];
   char* pwrite;
-  int write_calls = 0, incomplete_writes = 0, total_bytes_written = 0;
+  int write_calls = 0, incomplete_writes = 0;
 
   /* open the file */
   if ( (file = open(internals->filename, O_RDONLY)) < 0)
@@ -193,7 +195,7 @@ static void send_file(int fd, internals_t *internals)
         {
           remaining_bytes_to_write -= bytesWritten;
           pwrite += bytesWritten;
-          total_bytes_written += bytesWritten;
+          internals->total_bytes_written += bytesWritten;
         }
 
         if (bytesWritten != readBytes)
@@ -203,7 +205,7 @@ static void send_file(int fd, internals_t *internals)
       }
     }
 
-    printf("total bytes written: %i\n", total_bytes_written);
+    printf("total bytes written: %i\n", internals->total_bytes_written);
     printf("write calls: %i\n", write_calls);
     printf("incomplete writes: %i\n", incomplete_writes);
 
@@ -306,10 +308,20 @@ static void *receive_thread_entry(void *data)
     receive_loop(p->fd, p->internals);
 }
 
+static int64_t get_elapsed_time_ns(const struct timespec *before, const struct timespec *after)
+{
+  // printf("before - secs: %li, nsecs: %li\n", before->tv_sec, before->tv_nsec);
+  // printf("after - secs: %li, nsecs: %li\n", after->tv_sec, after->tv_nsec);
+
+  return ((after->tv_sec - before->tv_sec) * 1000000000LL) + after->tv_nsec - before->tv_nsec;
+}
+
 static void send_and_receive_loop(int fd, internals_t *internals)
 {
   pthread_t thread;
   thread_params_t p;
+  struct timespec time_before, time_after;
+  int64_t elapsed_time_ns;
 
   printf("will wait with sending file until at least 1 byte is received...\n");
 
@@ -321,9 +333,27 @@ static void send_and_receive_loop(int fd, internals_t *internals)
   /* wait until we received at least 1 byte */
   while (internals->total_bytes_received == 0)
     usleep(10000);
-  
+
+  /* get the time before we start sending the file */
+  clock_gettime(CLOCK_MONOTONIC_RAW, &time_before);
+
   /* start the file sending on the main thread */
   send_file(fd, internals);
+
+  /* get the time after we stopped sending the file */
+  clock_gettime(CLOCK_MONOTONIC_RAW, &time_after);
+
+  /* calculate the elapsed time in ns */
+  elapsed_time_ns = get_elapsed_time_ns(&time_before, &time_after);
+
+  printf("sending file took: %lli ns\n", elapsed_time_ns);
+
+  /* print a summary */
+  printf("sending %i bytes in %lli ms is ~%f bytes per second or ~%f baud\n",
+    internals->total_bytes_written,
+    elapsed_time_ns / 1000000,
+    internals->total_bytes_written / (double)elapsed_time_ns * 1000000000L,
+    internals->total_bytes_written / (double)elapsed_time_ns * 1000000000L * 8);
 
   /* wait for the sending thread */
   pthread_join(thread, NULL);
