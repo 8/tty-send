@@ -64,12 +64,13 @@ typedef enum
   ttys_command_send_pattern,
   ttys_command_set_echo,
   ttys_command_set_baudrate,
-  ttyc_command_set_parity,
-  ttyc_command_set_stopbits,
-  ttyc_command_set_databits,
+  ttys_command_set_parity,
+  ttys_command_set_stopbits,
+  ttys_command_set_databits,
   ttys_command_set_receive,
   ttys_command_set_local_echo,
-  ttys_command_set_output_file
+  ttys_command_set_output_file,
+  ttys_command_set_send_and_receive
 } ttys_command_t;
 
 typedef enum { action_print_help, action_send_file, action_send_pattern, action_echo, action_receive } action_t;
@@ -326,7 +327,7 @@ int main(int argc, char *argv[])
   }
 }
 
-static void ttyc_set_baudrate(char* arg, internals_t *internals)
+static void ttys_set_baudrate(char* arg, internals_t *internals)
 {
   int i;
   printf("set baudrate: %s\n", arg);
@@ -343,7 +344,7 @@ static void ttyc_set_baudrate(char* arg, internals_t *internals)
   }
 }
 
-static void ttyc_set_parity(char* arg, internals_t *internals)
+static void ttys_set_parity(char* arg, internals_t *internals)
 {
   printf("set parity: %s\n", arg);
   if (strncmp(arg, "none", 4)==0)
@@ -356,7 +357,7 @@ static void ttyc_set_parity(char* arg, internals_t *internals)
     printf("unknown parity value, allowed values are: none, even, odd\n");
 }
 
-static void ttyc_set_stopbits(char* arg, internals_t *internals)
+static void ttys_set_stopbits(char* arg, internals_t *internals)
 {
   int i;
   printf("set stopbits: %s\n", arg);
@@ -371,7 +372,7 @@ static void ttyc_set_stopbits(char* arg, internals_t *internals)
     printf("valid values: 0, 1\n");
 }
 
-static void ttyc_set_databits(char* arg, internals_t *internals)
+static void ttys_set_databits(char* arg, internals_t *internals)
 {
   int i;
   printf("set databits: %s\n", arg);
@@ -427,19 +428,19 @@ static void ttys_execute_command(ttys_command_t cmd, char* arg, internals_t *int
       break;
 
     case ttys_command_set_baudrate:
-      ttyc_set_baudrate(arg, internals);
+      ttys_set_baudrate(arg, internals);
       break;
 
-    case ttyc_command_set_parity:
-      ttyc_set_parity(arg, internals);
+    case ttys_command_set_parity:
+      ttys_set_parity(arg, internals);
       break;
 
-    case ttyc_command_set_stopbits:
-      ttyc_set_stopbits(arg, internals);
+    case ttys_command_set_stopbits:
+      ttys_set_stopbits(arg, internals);
       break;
 
-    case ttyc_command_set_databits:
-      ttyc_set_databits(arg, internals);
+    case ttys_command_set_databits:
+      ttys_set_databits(arg, internals);
       break;
 
     case ttys_command_set_receive:
