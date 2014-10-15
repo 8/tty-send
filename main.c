@@ -136,7 +136,7 @@ static void ttys_print_usage()
   printf("\twith echo:      ./tty-send --device=/dev/ttyRPC+0 --echo\n");
 }
 
-static void write_pattern(int fd, internals_t *internals)
+static void send_pattern(int fd, internals_t *internals)
 {
   int i, remaining_bytes_to_write, bytes_written;
   char *pwrite;
@@ -163,7 +163,7 @@ static void write_pattern(int fd, internals_t *internals)
   }
 }
 
-static void write_file(int fd, internals_t *internals)
+static void send_file(int fd, internals_t *internals)
 {
   int file, readBytes, remaining_bytes_to_write, bytesWritten;
   char buffer[8];
@@ -311,9 +311,9 @@ int main(int argc, char *argv[])
       set_interface_attribs(fd, internals.baudrate, internals.parity, internals.stopbits, internals.databits);
 
       if (internals.action == action_send_file)
-        write_file(fd, &internals);
+        send_file(fd, &internals);
       else if (internals.action == action_send_pattern)
-        write_pattern(fd, &internals);
+        send_pattern(fd, &internals);
       else if (internals.action == action_echo)
         echo_loop(fd, &internals);
       else if (internals.action == action_receive)
