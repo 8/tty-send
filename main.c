@@ -8,6 +8,7 @@
 #include <getopt.h>  /* for getopt_long*/
 #include <stdlib.h>  /* for atoi() */
 #include <errno.h>
+#include <pthread.h> /* used for multithreading */
 
 /* function to configure the serial port */
 int set_interface_attribs(int fd, int speed, int parity, int stopbits, int databits)
@@ -72,8 +73,7 @@ typedef enum
   ttys_command_set_output_file,
   ttys_command_set_send_and_receive
 } ttys_command_t;
-
-typedef enum { action_print_help, action_send_file, action_send_pattern, action_echo, action_receive } action_t;
+typedef enum { action_print_help, action_send_file, action_send_pattern, action_echo, action_receive, action_send_and_receive } action_t;
 
 typedef enum { local_echo_hex, local_echo_char, local_echo_none } local_echo_t;
 
@@ -95,6 +95,7 @@ typedef struct {
   int stopbits;
   int databits;
   char output_file[FILE_NAME_LENGTH];
+  volatile int total_bytes_received;
 } internals_t;
 
 /* forward declarations */
@@ -247,7 +248,6 @@ static void receive_loop(int fd, internals_t *internals)
 {
   char buffer[1];
   int bytes_read;
-  int total_received = 0;
   int fd_output = -1;
 
   /* try to open the output file */
@@ -274,8 +274,8 @@ static void receive_loop(int fd, internals_t *internals)
         write(fd_output, buffer, bytes_read);
 
       /* stop after reading 'count' bytes */
-      total_received += bytes_read;
-      if (internals->count != 0 && total_received >= internals->count)
+      internals->total_bytes_received += bytes_read;
+      if (internals->count != 0 && internals->total_bytes_received >= internals->count)
         break;
     }
   }
@@ -285,6 +285,48 @@ static void receive_loop(int fd, internals_t *internals)
   if (fd_output != -1)
     close(fd_output);
 
+}
+
+typedef struct {
+  int fd;
+  internals_t *internals;
+} thread_params_t;
+
+static void *send_file_thread_entry(void *data)
+{
+  thread_params_t *p = (thread_params_t*)data;
+  if (p)
+    send_file(p->fd, p->internals);
+}
+
+static void *receive_thread_entry(void *data)
+{
+  thread_params_t *p = (thread_params_t*)data;
+  if (p)
+    receive_loop(p->fd, p->internals);
+}
+
+static void send_and_receive_loop(int fd, internals_t *internals)
+{
+  pthread_t thread;
+  thread_params_t p;
+
+  printf("will wait with sending file until at least 1 byte is received...\n");
+
+  /* offload the receiving to a different thread */
+  p.fd = fd;
+  p.internals = internals;
+  pthread_create(&thread, NULL, receive_thread_entry, &p);
+
+  /* wait until we received at least 1 byte */
+  while (internals->total_bytes_received == 0)
+    usleep(10000);
+  
+  /* start the file sending on the main thread */
+  send_file(fd, internals);
+
+  /* wait for the sending thread */
+  pthread_join(thread, NULL);
 }
 
 /* main entry point */
@@ -319,6 +361,8 @@ int main(int argc, char *argv[])
         echo_loop(fd, &internals);
       else if (internals.action == action_receive)
         receive_loop(fd, &internals);
+      else if (internals.action == action_send_and_receive)
+        send_and_receive_loop(fd, &internals);
 
       /* closing device */
       printf("closing device %i\n", fd);
@@ -387,7 +431,6 @@ static void ttys_set_databits(char* arg, internals_t *internals)
     default: printf("valid values: 5, 6, 7, 8\n"); break;
   }
 }
-
 
 static void ttys_execute_command(ttys_command_t cmd, char* arg, internals_t *internals)
 {
@@ -462,6 +505,10 @@ static void ttys_execute_command(ttys_command_t cmd, char* arg, internals_t *int
       strncpy(internals->output_file, arg, FILE_NAME_LENGTH-1); /* store the file name */
       printf("setting output file to: %s\n", internals->output_file);
       break;
+
+    case ttys_command_set_send_and_receive:
+      internals->action = action_send_and_receive;
+      break;
   }
 }
 
@@ -484,7 +531,8 @@ static void ttys_handle_parameters(int argc, char** argv, internals_t *internals
     { "receive",    no_argument,       0, 0 },
     { "local-echo", required_argument, 0, 0 },
     { "output",     required_argument, 0, 0 },
-    { 0,          0,                 0, 0 }
+    { "send_and_receive", no_argument, 0, 0 },
+    { 0,            0,                 0, 0 }
   };
 
   /* enable error messages for arguments */
