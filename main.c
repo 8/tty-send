@@ -11,26 +11,46 @@
 #include <pthread.h> /* used for multithreading */
 #include <time.h>    /* used for time measurement */
 
-/* function to configure the serial port */
-int set_interface_attribs(int fd, int speed, int parity, int stopbits, int databits)
-{
-  struct termios tty = {};
-  //memset (&tty, 0, sizeof tty);
-  if (tcgetattr (fd, &tty) != 0)
-  {
-    //error_message ("error %d from tcgetattr", errno);
-    return -1;
-  }
+#include <linux/serial.h> /* used for seria_struct */
+#include <sys/ioctl.h> /* used for ioctl */
 
-  cfsetospeed (&tty, speed);
-  cfsetispeed (&tty, speed);
+/* function to configure the serial port */
+/* custom_baudrate: if this value is different from 0 specify a custom baudrate instead of the baudrate supplied as the speed parameter */
+int set_interface_attribs(int fd, speed_t speed, int parity, int stopbits, int databits, int custom_baudrate)
+{
+  int closest_speed;
+  struct serial_struct ss ={};
+  struct termios tty = {};
+
+  /* return with an error if tcgetattr fails*/
+  if (tcgetattr (fd, &tty) != 0)
+    return -1;
+
+  if (custom_baudrate != 0)
+  {
+    /* configure the port to use custom speed instead of 38400 */
+    ioctl(fd, TIOCGSERIAL, &ss);
+    ss.flags = (ss.flags & ~ASYNC_SPD_MASK) | ASYNC_SPD_CUST;
+    printf("custom_baudrate: %i, ss.baud_base: %i\n", custom_baudrate, ss.baud_base);
+    ss.custom_divisor = (ss.baud_base + (custom_baudrate / 2)) / custom_baudrate;
+    printf("setting custom divisor to: %i\n", ss.custom_divisor);
+    //closest_speed = ss.baud_base / ss.custom_divisor;
+    ioctl(fd, TIOCSSERIAL, &ss);
+    cfsetospeed(&tty, B38400);
+    cfsetispeed(&tty, B38400);
+  }
+  else
+  {
+    /* set the baudrate */
+    cfsetospeed(&tty, speed);
+    cfsetispeed(&tty, speed);
+  }
 
   //tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
   tty.c_cflag = (tty.c_cflag & ~CSIZE);
   tty.c_cflag |= databits;
 
-  // disable IGNBRK for mismatched speed tests; otherwise receive break
-  // as \000 chars
+  // disable IGNBRK for mismatched speed tests; otherwise receive break as \000 chars
   //tty.c_cflag |= CS8;
   tty.c_iflag &= ~IGNBRK;         // ignore break signal
   tty.c_lflag = 0;                // no signaling chars, no echo,
@@ -49,11 +69,10 @@ int set_interface_attribs(int fd, int speed, int parity, int stopbits, int datab
   tty.c_cflag |= stopbits;
   tty.c_cflag &= ~CRTSCTS;
 
+  /* return with an error if tcsetattr fails */
   if (tcsetattr (fd, TCSANOW, &tty) != 0)
-  {
-    //error_message ("error %d from tcsetattr", errno);
     return -1;
-  }
+
   return 0;
 }
 
@@ -91,7 +110,8 @@ typedef struct {
   int data_length;
   action_t action;
   local_echo_t local_echo;
-  int baudrate;
+  speed_t baudrate;
+  int custom_baudrate;
   int parity;
   int stopbits;
   int databits;
@@ -116,6 +136,7 @@ static void init_internals(internals_t *internals)
   internals->parity = 0;
   internals->stopbits = 0;
   internals->databits = CS8;
+  internals->custom_baudrate = 0;
 }
 
 static int ttys_open_device(char* device, int non_blocking_write)
@@ -381,7 +402,7 @@ int main(int argc, char *argv[])
     if ((fd = ttys_open_device(internals.device, internals.non_blocking_write)) != -1)
     {
       /* configure the tty device */
-      set_interface_attribs(fd, internals.baudrate, internals.parity, internals.stopbits, internals.databits);
+      set_interface_attribs(fd, internals.baudrate, internals.parity, internals.stopbits, internals.databits, internals.custom_baudrate);
 
       if (internals.action == action_send_file)
         send_file(fd, &internals);
@@ -414,7 +435,10 @@ static void ttys_set_baudrate(char* arg, internals_t *internals)
     case 38400: internals->baudrate = B38400; break;
     case 57600: internals->baudrate = B57600; break;
     case 115200: internals->baudrate = B115200; break;
-    default: printf("unknown baudrate, try 9600, 19200, 38400, 57600 or 115200\n"); break;
+    default:
+      printf("using custom baudrate!\n");
+      internals->custom_baudrate = i;
+      break;
   }
 }
 
